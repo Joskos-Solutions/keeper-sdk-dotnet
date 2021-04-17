@@ -46,7 +46,7 @@ function Add-KeeperFolder {
 		Write-Error -Message 'Not connected'
 		return
 	}
-	$objs = Get-KeeperChildItems -ObjectType Folder | where Name -eq $Name
+	$objs = Get-KeeperChildItems -ObjectType Folder | Where-Object Name -eq $Name
 	if ($objs.Length -gt 0 ) {
         Write-Error -Message "Folder `"$Name`" already exists"
 		return
