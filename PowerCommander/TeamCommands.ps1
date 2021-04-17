@@ -12,7 +12,7 @@ function Get-KeeperTeams {
 		Return matching Teams only
 	#>
 	[CmdletBinding()]
-	#[OutputType([Vault.SharedFolder[]])] 
+	[OutputType([Vault.Team[]])] 
 	Param (
 		[string] $Uid,
 		[string] $Filter
