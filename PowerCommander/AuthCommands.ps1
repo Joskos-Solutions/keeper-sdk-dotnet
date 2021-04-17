@@ -5,7 +5,6 @@ using namespace KeeperSecurity
 class VaultCallback : Vault.IVaultUi {
     [System.Threading.Tasks.Task[bool]]Confirmation([string]$information) {
         Write-Host $information 
-        Write-Host
         $answer = Read-Host -Prompt 'Please confirm (Y/N)'
         return [System.Threading.Tasks.Task]::FromResult($answer -eq 'Y')
     }
@@ -172,13 +171,13 @@ class AuthFlowCallback : Authentication.Sync.IAuthSyncCallback, Authentication.I
                     if ($pushes -ne $null) {
                         foreach($push in $pushes) {
                             if ($action -eq [Authentication.AuthUIExtensions]::GetPushActionText($push)) {
-                                $_ = $auth.step.SendPush($push).GetAwaiter().GetResult()
+                                $auth.step.SendPush($push).GetAwaiter().GetResult() | Out-Null
                                 return
                             }
                         }
                     }
                     Try {
-                        $_ = $auth.step.SendCode($auth.step.DefaultChannel, $action).GetAwaiter().GetResult()
+                        $auth.step.SendCode($auth.step.DefaultChannel, $action).GetAwaiter().GetResult() | Out-Null
                     }
                     Catch {
                         Write-Host $_ -ForegroundColor Red
@@ -188,7 +187,7 @@ class AuthFlowCallback : Authentication.Sync.IAuthSyncCallback, Authentication.I
         }
         elseif ($auth.step -is [Authentication.Sync.PasswordStep]) {
             Try {
-                $_ = $auth.step.VerifyPassword($action).GetAwaiter().GetResult()
+                $auth.step.VerifyPassword($action).GetAwaiter().GetResult() | Out-Null
             }
             Catch [Authentication.KeeperAuthFailed]{
                 Write-Host 'Invalid password' -ForegroundColor Red
@@ -364,7 +363,7 @@ function Connect-Keeper {
         [Parameter()][string] $Server
     )
 
-    $_ = Disconnect-Keeper -Resume
+    Disconnect-Keeper -Resume | Out-Null
 
 	$storage = New-Object Configuration.JsonConfigurationStorage
     if (-not $Server) {
@@ -406,12 +405,11 @@ function Connect-Keeper {
         }    
     }
     if ($SsoProvider.IsPresent) {
-        $_ = $authFlow.LoginSso($Username).GetAwaiter().GetResult()
+        $authFlow.LoginSso($Username).GetAwaiter().GetResult() | Out-Null
     } else {
-        $_ = $authFlow.Login($Username).GetAwaiter().GetResult()
+        $authFlow.Login($Username).GetAwaiter().GetResult() | Out-Null
     }
     $lastState = $null
-    Write-Output ""
     while(-not $authFlow.IsCompleted) {
         if ($lastStep -ne $authFlow.Step.State) {
             $authFlow.UiCallback.PrintStepHelp($authFlow)
@@ -467,13 +465,16 @@ function Connect-Keeper {
         $Script:Vault = New-Object Vault.VaultOnline($auth)
         $task = $Script:Vault.SyncDown()
         Write-Information -MessageData 'Syncing ...'
-        $_ = $task.GetAwaiter().GetResult()
+        $task.GetAwaiter().GetResult() | Out-Null
         $Script:Vault.AutoSync = $true
+
+        $Script:Enterprise = New-Object KeeperSecurity.Enterprise.EnterpriseData($auth)
+        $task = $Script:Enterprise.PopulateEnterprise().GetAwaiter().GetResult() | Out-Null
 
         [Vault.VaultData]$vault = $Script:Vault
         $vault.VaultUi = New-Object VaultCallback
         Write-Information -MessageData "Decrypted $($vault.RecordCount) record(s)"
-        $_ = Set-KeeperLocation -Path '\'
+        Set-KeeperLocation -Path '\' | Out-Null
     }
 }
 
@@ -483,7 +484,7 @@ $Keeper_ConfigServerCompleter = {
     $prefixes = @('', 'dev.', 'qa.')
     $suffixes = $('.com', '.eu')
 
-    $prefixes | % { $p = $_; $suffixes | % {$s = $_; "${p}keepersecurity${s}" }} | Where {$_.StartsWith($wordToComplete)}
+    $prefixes | ForEach-Object { $p = $_; $suffixes | ForEach-Object { $s = $_; "${p}keepersecurity${s}" } } | Where-Object { $_.StartsWith($wordToComplete) }
 }
 Register-ArgumentCompleter -Command Connect-Keeper -ParameterName Server -ScriptBlock $Keeper_ConfigServerCompleter
 
@@ -502,16 +503,16 @@ function Disconnect-Keeper {
 
     $vault = $Script.Vault
     if ($vault -ne $null) {
-        $_ = $vault.Dispose()
+        $vault.Dispose() | Out-Null
     }
     $Script:Vault = $null
 
     [Authentication.IAuthentication] $auth = $Script:Auth
     if ($auth -ne $null) {
         if (-not $Resume.IsPresent) {
-            $_ = $auth.Logout().GetAwaiter().GetResult()
+            $auth.Logout().GetAwaiter().GetResult() | Out-Null
         }
-        $_ = $auth.Dispose()
+        $auth.Dispose() | Out-Null
 
     }
     $Script:Auth = $null
@@ -528,7 +529,7 @@ function Sync-Keeper {
     [Vault.VaultOnline]$vault = $Script:Vault
     if ($vault) {
         $task = $vault.SyncDown()
-        $_ = $task.GetAwaiter().GetResult()
+        $task.GetAwaiter().GetResult()  | Out-Null
     } else {
         Write-Error -Message "Not connected"
     }
@@ -546,11 +547,12 @@ function Out-Keeper {
 #>
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory=$true, Position=0)][ValidateSet('Vault' ,'Auth')][string] $ObjectType
+        [Parameter(Mandatory=$true, Position=0)][ValidateSet('Vault' ,'Auth','Enterprise')][string] $ObjectType
     )
     switch ($ObjectType) {
         'Auth' { $Script:Auth }
         'Vault' { $Script:Vault }
+        'Enterprise' { $Script:Enterprise }
     }
 }
 
