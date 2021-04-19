@@ -131,7 +131,7 @@ class AuthFlowCallback : Authentication.Sync.IAuthSyncCallback, Authentication.I
     [void]ExecuteStepAction($auth, $action) {
         if ($auth.step -is [Authentication.Sync.DeviceApprovalStep]) {
             if ($action -eq 'push') {
-                $_ = $auth.step.SendPush($auth.step.DefaultChannel).GetAwaiter().GetResult()
+                $auth.step.SendPush($auth.step.DefaultChannel).GetAwaiter().GetResult() | Out-Null
             }
             elseif ($action -match 'channel\s*=\s*(.*)') {
                 $ch = $Matches.1
@@ -141,7 +141,7 @@ class AuthFlowCallback : Authentication.Sync.IAuthSyncCallback, Authentication.I
                 }
             } else {
                 Try {
-                    $_ = $auth.step.SendCode($auth.step.DefaultChannel, $action).GetAwaiter().GetResult()
+                    $auth.step.SendCode($auth.step.DefaultChannel, $action).GetAwaiter().GetResult() | Out-Null
                 }
                 Catch [Authentication.KeeperApiException]{
                     Write-Host $_ -ForegroundColor Red
@@ -198,31 +198,31 @@ class AuthFlowCallback : Authentication.Sync.IAuthSyncCallback, Authentication.I
         }
         elseif ($auth.step -is [Authentication.Sync.SsoTokenStep]) {
             if ($action -eq 'password') {
-                $_ = $auth.step.LoginWithPassword().GetAwaiter().GetResult()
+                $auth.step.LoginWithPassword().GetAwaiter().GetResult() | Out-Null
             } else {
-                $_ = $auth.step.SetSsoToken($action).GetAwaiter().GetResult()
+                $auth.step.SetSsoToken($action).GetAwaiter().GetResult() | Out-Null
             }
         }
         elseif ($auth.step -is [Authentication.Sync.SsoDataKeyStep]) {
             [Authentication.DataKeyShareChannel]$channel = [Authentication.DataKeyShareChannel]::KeeperPush
             if ([Authentication.AuthUIExtensions]::TryParseDataKeyShareChannel($action, [ref]$channel)) {
-                $_ = $auth.step.RequestDataKey($channel).GetAwaiter().GetResult()
+                $auth.step.RequestDataKey($channel).GetAwaiter().GetResult()
             }
         }
         elseif ($auth.step -is [Authentication.Sync.ReadyToLoginStep]) {
             if ($action -match '^login\s+(.*)$') {
                 $username = $Matches.1
-                $_ = $auth.Login($username).GetAwaiter().GetResult()
+                $auth.Login($username).GetAwaiter().GetResult() | Out-Null
             }
             elseif ($action -match '^login_sso\s+(.*)$') {
                 $providerName = $Matches.1
-                $_ = $auth.LoginSso($providerName).GetAwaiter().GetResult()
+                $auth.LoginSso($providerName).GetAwaiter().GetResult() | Out-Null
             }
         }
         elseif ($auth.step -is [Authentication.Sync.HttpProxyStep]) {
             $args = Invoke-Expression ".{`$args} $action"
             if ($args.Count -eq 3 -and $args[0] -eq 'login') {
-                $_ = $auth.step.SetProxyCredentials($args[1], $args[2]).GetAwaiter().GetResult()
+                $auth.step.SetProxyCredentials($args[1], $args[2]).GetAwaiter().GetResult() | Out-Null
             }
         }
     }
@@ -360,7 +360,8 @@ function Connect-Keeper {
         [Parameter()][switch] $NewLogin,
         [Parameter(ParameterSetName='sso_password')][switch] $SsoPassword,
         [Parameter(ParameterSetName='sso_provider')][switch] $SsoProvider,
-        [Parameter()][string] $Server
+        [Parameter()][string] $Server,
+        [Parameter()] [PSCredential] $Credentials
     )
 
     Disconnect-Keeper -Resume | Out-Null
@@ -386,22 +387,26 @@ function Connect-Keeper {
     $authFlow.ResumeSession = $true
     $authFlow.AlternatePassword = $SsoPassword.IsPresent
 
+    if ($Credentials) {
+        $Username = $Credentials.UserName
+    }
+
     if (-not $NewLogin.IsPresent -and -not $SsoProvider.IsPresent) {
         if (-not $Username) {
             $Username = $storage.LastLogin
         }
     }
 
-    $namePrompt = 'Keeper Username'
+    $namePrompt = "Keeper Username"
     if ($SsoProvider.IsPresent) {
         $namePrompt = 'Enterprise Domain'
     }
 
-    if ($Username) {
-        Write-Host "$(($namePrompt + ': ').PadLeft(21, ' ')) $Username"
+    if ($Username -and !$Credentials.UserName) {
+        Write-Host "$namePrompt`: $Username"
     } else {
         while (-not $Username) {
-            $Username = Read-Host -Prompt $namePrompt.PadLeft(20, ' ')
+            $Username = Read-Host -Prompt $namePrompt
         }    
     }
     if ($SsoProvider.IsPresent) {
@@ -411,7 +416,7 @@ function Connect-Keeper {
     }
     $lastState = $null
     while(-not $authFlow.IsCompleted) {
-        if ($lastStep -ne $authFlow.Step.State) {
+        if ($lastStep -ne $authFlow.Step.State -and !$Credentials.UserName) {
             $authFlow.UiCallback.PrintStepHelp($authFlow)
             $lastStep = $authFlow.Step.State
         }
@@ -420,7 +425,11 @@ function Connect-Keeper {
 
         $authFlow.UiCallback.ReadingInput = $true
         if ($authFlow.Step -is [Authentication.Sync.PasswordStep]) {
-            $securedPassword = Read-Host -Prompt $prompt -AsSecureString 
+            if ($Credentials) {
+                $securedPassword = $Credentials.Password
+            } else {
+                $securedPassword = Read-Host -Prompt $prompt -AsSecureString 
+            }
             if ($securedPassword.Length -gt 0) {
                 $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securedPassword)
 			    $action = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
