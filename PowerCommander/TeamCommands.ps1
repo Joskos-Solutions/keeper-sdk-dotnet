@@ -54,7 +54,7 @@ function Get-KeeperTeamMembers {
 function Add-KeeperTeamMember {
 	<#
 		.Synopsis
-		Remove Keeper Team Member
+		Add Keeper Team Member
 	
 		.Parameter TeamUid
 		UId for Team
@@ -103,10 +103,10 @@ function Remove-KeeperTeamMember {
 	}
 }
 
-function New-KeeperTeam {
+function Add-KeeperTeam {
 		<#
 		.Synopsis
-		Remove Keeper Team Member
+		Add Keeper Team
 	
 		.Parameter Name
 		Name of new Team
