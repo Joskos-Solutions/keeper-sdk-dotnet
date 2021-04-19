@@ -16,6 +16,8 @@ To install the PowerCommander module copy PowerCommander\ directory to
 | Get-KeeperChildItems      | kdir   | Display subfolder and record names in the current Keeper folder
 | Get-KeeperRecords         | kr     | Enumerate all records
 | Get-KeeperSharedFolders   | ksf    | Enumerate all shared folders
+| Add-KeeperFolderMember    |        | Add user or team to shared folder
+| Remove-KeeperFolderMember |        | Remove user or team from shared folder
 | Add-KeeperRecord          | kadd   | Add/Modify Keeper record
 | Remove-KeeperRecord       | kdel   | Delete Keeper record
 | Add-KeeperFolder          | kmkdir | Create Keeper Folder
@@ -23,6 +25,15 @@ To install the PowerCommander module copy PowerCommander\ directory to
 | Move-RecordToFolder       | kmv    | Move owned record to Keeper folder
 | Copy-KeeperToClipboard    | kcc    | Copy record password to clipboard
 | Show-TwoFactorCode        | 2fa    | Display Two Factor Code 
+| Get-KeeperUsers           |        | Get users in enterprise organisation
+| Get-KeeperTeams           |        | Get teams in enterprise organisation
+| Add-KeeperTeam            |        | Add new team to enterprise organisation
+| Remove-KeeperTeam         |        | Remove team from enterprise organisation
+| Get-KeeperTeamMembers     |        | Get members of a specific team
+| Add-KeeperTeamMember      |        | Add a user to a specific team
+| Remove-KeeperTeamMember   |        | Remove a user from a specific team
+| Get-KeeperManagementNode  |        | Gets management nodes in enterprise organisation
+
 
 
 #### Examples
