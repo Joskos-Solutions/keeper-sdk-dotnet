@@ -138,7 +138,9 @@ function Remove-KeeperFolderMember {
 
 	[Vault.VaultOnline]$Vault = $Script:Vault
 	if ($Vault) {
-		$Vault | Get-Member
+		$task = $Vault.SyncDown()
+        $task.GetAwaiter().GetResult()  | Out-Null
+		
 		$Task = $Vault.RemoveUserFromSharedFolder($SharedFolderID,$UserID,$IdType)
 		$task.GetAwaiter().GetResult() | Out-Null
 	}
