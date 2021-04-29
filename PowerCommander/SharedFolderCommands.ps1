@@ -82,10 +82,10 @@ function Add-KeeperFolderMember {
 	$options = $null
 	$options = New-Object KeeperSecurity.Vault.SharedFolderOptions
 	if ($ManageUsers) {
-		$options.ManageRecords = $true
+		$options.ManageUsers = $true
 	}
 	if ($ManageRecords) {
-		$options.ManageUsers = $true
+		$options.ManageRecords = $true
 	}
 
 	if ($TeamId) {
