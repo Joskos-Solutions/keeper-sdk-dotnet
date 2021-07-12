@@ -357,6 +357,7 @@ function Connect-Keeper {
     [CmdletBinding(DefaultParameterSetName = 'regular')]
     Param(
         [Parameter(Position = 0)][string] $Username,
+        [Parameter()][string] $Password,
         [Parameter()][switch] $NewLogin,
         [Parameter(ParameterSetName='sso_password')][switch] $SsoPassword,
         [Parameter(ParameterSetName='sso_provider')][switch] $SsoProvider,

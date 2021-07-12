@@ -2,9 +2,13 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using Authentication;
 using CommandLine;
+using CommandLine.Text;
+using Google.Protobuf;
 using KeeperSecurity.Authentication;
 using KeeperSecurity.Authentication.Async;
+using KeeperSecurity.Utils;
 
 namespace Commander
 {
@@ -99,6 +103,17 @@ namespace Commander
             {
                 yield return sb.ToString();
             }
+        }
+
+        public static string GetCommandUsage<T>(int width = 120)
+        {
+            var parser = new Parser(with => with.HelpWriter = null);
+            var result = parser.ParseArguments<T>(new[] { "--help" });
+            return HelpText.AutoBuild(result, h =>
+            {
+                h.AdditionalNewLineAfterOption = false;
+                return h;
+            }, width);
         }
     }
 
@@ -238,6 +253,12 @@ namespace Commander
     {
         private readonly Auth _auth;
 
+        private class CreateOptions
+        {
+            [Value(0, Required = true, MetaName = "email", HelpText = "account email")]
+            public string Username { get; set; }
+        }
+
         private class LoginOptions
         {
             [Option("password", Required = false, HelpText = "master password")]
@@ -271,6 +292,13 @@ namespace Commander
                 Order = 10,
                 Description = "Login to Keeper",
                 Action = DoLogin
+            });
+
+            Commands.Add("create", new ParsableCommand<CreateOptions>
+            {
+                Order = 11,
+                Description = "Create Keeper account",
+                Action = DoCreateAccount
             });
 
             Commands.Add("server", new SimpleCommand
@@ -323,6 +351,100 @@ namespace Commander
                     Program.EnqueueCommand($"login --resume {lastLogin}");
                 }
             }
+        }
+
+        private async Task DoCreateAccount(CreateOptions options)
+        {
+            var username = options.Username.ToLowerInvariant();
+            Console.WriteLine($"Create {username} account in {_auth.Endpoint.Server} region.");
+
+            var rulesRs = await _auth.Endpoint.GetNewUserParams(username);
+            var matcher = PasswordRuleMatcher.FromNewUserParams(rulesRs);
+            string password;
+            while (true)
+            {
+                Console.Write("\nEnter Master Password: ");
+                password = await Program.GetInputManager().ReadLine(new ReadLineParameters {IsSecured = true});
+                var failedRules = matcher.MatchFailedRules(password);
+                if (failedRules == null) break;
+                if (failedRules.Length == 0) break;
+                Console.WriteLine(string.Join("\n", failedRules));
+            }
+
+            try
+            {
+                var context = new LoginContext();
+                await _auth.EnsureDeviceTokenIsRegistered(context, username);
+
+                await _auth.RequestCreateUser(context, password);
+
+                Task<string> verificationCodeTask = null;
+                _auth.PushNotifications.RegisterCallback(evt =>
+                {
+                    if (evt.Command == "user_created" && evt.Username == username)
+                    {
+                        if (verificationCodeTask != null)
+                        {
+                            Program.GetInputManager().InterruptReadTask(verificationCodeTask);
+                        }
+
+                        return true;
+                    }
+
+                    return false;
+                });
+                while (true)
+                {
+                    Console.Write("\nEnter Verification Code: ");
+                    try
+                    {
+                        verificationCodeTask = Program.GetInputManager().ReadLine();
+                        var code = await verificationCodeTask;
+                        verificationCodeTask = null;
+                        if (string.IsNullOrEmpty(code)) break;
+                        var verRq = new ValidateCreateUserVerificationCodeRequest
+                        {
+                            ClientVersion = _auth.Endpoint.ClientVersion,
+                            Username = username,
+                            VerificationCode = code,
+                        };
+
+                        var payload = new ApiRequestPayload
+                        {
+                            Payload = ByteString.CopyFrom(verRq.ToByteArray())
+                        };
+                        await _auth.Endpoint.ExecuteRest("authentication/validate_create_user_verification_code", payload);
+
+                        break;
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
+                    catch (KeeperApiException kae)
+                    {
+                        if (kae.Code == "link_or_code_expired")
+                        {
+                            Console.WriteLine(kae.Message);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                _auth.PushNotifications?.Dispose();
+                _auth.SetPushNotifications(null);
+            }
+
+            await DoLogin(new LoginOptions
+            {
+                Username = username,
+                Password = password
+            });
         }
 
         private async Task DoLogin(LoginOptions options)
