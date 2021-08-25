@@ -3,10 +3,10 @@
 using namespace KeeperSecurity
 
 class VaultCallback : Vault.IVaultUi {
-    [System.Threading.Tasks.Task[bool]]Confirmation([string]$information) {
-        Write-Host $information 
-        $answer = Read-Host -Prompt 'Please confirm (Y/N)'
-        return [System.Threading.Tasks.Task]::FromResult($answer -eq 'Y')
+    [System.Threading.Tasks.Task[bool]]Confirmation( [string]$information ) {
+        Write-Host $information -ForegroundColor Green
+        Write-Warning "Please confirm" -WarningAction Inquire
+        return [System.Threading.Tasks.Task]::FromResult( $true )
     }
 }
 
