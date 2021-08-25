@@ -18,7 +18,7 @@ To install the PowerCommander module copy PowerCommander\ directory to
 | Get-KeeperSharedFolders   | ksf    | Enumerate all shared folders
 | Add-KeeperFolderMember    |        | Add user or team to shared folder
 | Remove-KeeperFolderMember |        | Remove user or team from shared folder
-| Add-KeeperRecord          | kadd   | Add/Modify Keeper record
+| Set-KeeperRecord          |        | Add/Modify Keeper record
 | Remove-KeeperRecord       | kdel   | Delete Keeper record
 | Add-KeeperFolder          | kmkdir | Create Keeper Folder
 | Remove-KeeperFolder       | krmdir | Remove Keeper Folder
@@ -71,15 +71,12 @@ To install the PowerCommander module copy PowerCommander\ directory to
 
 4. Show Two Factor Code for all records in the Vault.
     ```
-    PS > kr|2fa
+    PS > Get-KeeperRecords | Show-TwoFactorCode
     ```
-     where 
-    * `kr` is alias for `Get-KeeperRecords` 
-    * `2fa` is alias for `Show-TwoFactorCode`
 
 5. Copy record password to clipboard
     ```
-    PS > 'contro' | kcc
+    PS > 'contro' | Copy-KeeperToClipboard
     ``` 
     where 
     * `contro` is a substring of the record title. See last entry of `kdir` output in example #2 
@@ -93,12 +90,12 @@ To install the PowerCommander module copy PowerCommander\ directory to
 
 6. Add/Modify Keeper record
     ```
-    PS > kadd -Login email@company.com -GeneratePassword -URL https://company.com -Custom 'Name:John Doe' 'Record for John Doe'
+    PS > Set-KeeperRecord -Login email@company.com -GeneratePassword -URL https://company.com -Custom 'Name:John Doe' 'Record for John Doe'
     ```
     creates a record in Keeper 
 
     ```
-    PS > kadd -GeneratePassword -UpdateOnly 'Record for John Doe'
+    PS > Set-KeeperRecord -Password 'dog' -UID 'ZZZZZZZZZZZZZ'
     ```
     generates a new password
 

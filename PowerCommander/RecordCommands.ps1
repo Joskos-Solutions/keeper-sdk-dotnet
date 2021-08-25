@@ -212,7 +212,7 @@ function Show-TwoFactorCode {
 
 New-Alias -Name 2fa -Value Show-TwoFactorCode
 
-function Add-KeeperRecord {
+function Set-KeeperRecord {
 <#
 	.Synopsis
 	Creates or Modifies a Keeper record in the current folder.
@@ -220,8 +220,8 @@ function Add-KeeperRecord {
 	.Parameter Title
 	Title field
 
-	.Parameter UpdateOnly 
-	Do not create a new record
+	.Parameter UID 
+	Updates existing record 
 
 	.Parameter Login
 	Login field
@@ -246,14 +246,14 @@ function Add-KeeperRecord {
 
 	[CmdletBinding(DefaultParameterSetName = 'Default')]
 	Param (
-		[Parameter(Position = 0, Mandatory = $true)][string] $Title,
-		[Parameter()][switch] $UpdateOnly,
-		[Parameter()][string] $Login,
-		[Parameter()][switch] $GeneratePassword,
-		[Parameter()][string] $Password,
-		[Parameter()][string] $URL,
-		[Parameter()][string[]] $Custom,
-		[Parameter()][string] $Notes
+		[Parameter(ParameterSetName='Default')][Parameter(ParameterSetName='Update')][string] $Title,
+		[Parameter(ParameterSetName='Update')][string] $UID,
+		[Parameter(ParameterSetName='Default')][Parameter(ParameterSetName='Update')][string] $Password,
+		[Parameter(ParameterSetName='Default')][Parameter(ParameterSetName='Update')][string] $Login,
+		[Parameter(ParameterSetName='Default')][switch] $GeneratePassword,
+		[Parameter(ParameterSetName='Default')][Parameter(ParameterSetName='Update')][string] $URL,
+		[Parameter(ParameterSetName='Default')][Parameter(ParameterSetName='Update')][string[]] $Custom,
+		[Parameter(ParameterSetName='Default')][Parameter(ParameterSetName='Update')][string] $Notes
 	)
 
 	Begin {
@@ -266,21 +266,49 @@ function Add-KeeperRecord {
 	}
 
 	Process {
-		$objs = Get-KeeperChildItems -ObjectType Record | Where-Object Name -eq $Title
-		if ($objs.Length -eq 0 -and $UpdateOnly.IsPresent) {
+		if ($UID) {
+			$objs = Get-KeeperObject -Uid $UID -ObjectType Record 
+		}
+
+		if ($objs.Length -eq 0 -and $UID) {
             Write-Error -Message "Record `"$Title`" not found"
 			return
 		}
+
         if ($objs.Length -eq 0) {
             $record = New-Object Vault.PasswordRecord
-        }
-        else {
+        } else {
             $record = Get-KeeperRecords -Uid $objs[0].UID
             if (-not $record) {
                 Write-Error -Message "Record `"$Title`" not found"
 				return
             }
         }
+
+		if ($Title) {
+			$record.Title = $Title
+		}
+
+		if ($Login) {
+			$record.Login = $Login
+		}
+
+		if ($Password) {
+			$record.Password = $Password
+		}
+
+		if ($URL) {
+			$record.Link = $URL
+		}
+
+		if ($Custom) {
+			foreach($customField in $Custom) {
+				$pos = $customField.IndexOf(':')
+				if ($pos -gt 0 -and $pos -lt $customField.Length) {
+					$record.SetCustomField($customField.Substring(0, $pos), $customField.Substring($pos + 1)) | out-Null
+				}
+			}
+		}
         
         if ($Notes) {
             if ($record.Notes) {
@@ -298,27 +326,6 @@ function Add-KeeperRecord {
             }
             $Password = [Utils.CryptoUtils]::GenerateUid()
         }
-
-        if (-not $record.Uid) {
-            $record.Title = $Title
-        }
-        if ($Login) {
-            $record.Login = $Login
-        }
-        if ($Password) {
-            $record.Password = $Password
-        }
-        if ($URL) {
-            $record.Link = $URL
-        }
-        if ($Custom) {
-            foreach($customField in $Custom) {
-                $pos = $customField.IndexOf(':')
-                if ($pos -gt 0 -and $pos -lt $customField.Length) {
-                    $_ = $record.SetCustomField($customField.Substring(0, $pos), $customField.Substring($pos + 1))
-                }
-            }
-        }
 	}
     End {
 		if ($record.Uid) {
@@ -329,8 +336,6 @@ function Add-KeeperRecord {
 		$task.GetAwaiter().GetResult()
     }
 }
-New-Alias -Name kadd -Value Add-KeeperRecord
-
 
 function Remove-KeeperRecord {
 <#
@@ -343,7 +348,8 @@ function Remove-KeeperRecord {
 
 	[CmdletBinding(DefaultParameterSetName = 'Default')]
 	Param (
-		[Parameter(Position = 0, Mandatory = $true)][string] $Name
+		[Parameter(Position = 0, Mandatory = $true)][string] $Name,
+		[Parameter()] [switch] $Force
 	)
 
 	[Vault.VaultOnline]$vault = $Script:Vault
@@ -382,8 +388,12 @@ function Remove-KeeperRecord {
 	$recordPath = New-Object KeeperSecurity.Vault.RecordPath
 	$recordPath.RecordUid = $recordUid
 	$recordPath.FolderUid = $folderUid
-	$task = $vault.DeleteRecords(@($recordPath))
-	$_ = $task.GetAwaiter().GetResult()
+	if ($Force) {
+		$task = $vault.DeleteRecords(@($recordPath))
+	} else {
+		$task = $vault.DeleteRecords(@($recordPath))
+	}
+	$task.GetAwaiter().GetResult() | Out-Null
 }
 New-Alias -Name kdel -Value Remove-KeeperRecord
 
